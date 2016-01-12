@@ -31,8 +31,10 @@ class MenuItemView: UIView {
     
     var titleLabel : UILabel?
     var menuItemSeparator : UIView?
+    var imageTitle = ""
+    var imageView: UIImageView?
     
-    func setUpMenuItemView(menuItemWidth: CGFloat, menuScrollViewHeight: CGFloat, indicatorHeight: CGFloat, separatorPercentageHeight: CGFloat, separatorWidth: CGFloat, separatorRoundEdges: Bool, menuItemSeparatorColor: UIColor) {
+    func setUpMenuItemView(menuItemWidth: CGFloat, menuScrollViewHeight: CGFloat, indicatorHeight: CGFloat, separatorPercentageHeight: CGFloat, separatorWidth: CGFloat, separatorRoundEdges: Bool, menuItemSeparatorColor: UIColor, navItem: UINavigationItem) {
         titleLabel = UILabel(frame: CGRectMake(0.0, 0.0, menuItemWidth, menuScrollViewHeight - indicatorHeight))
         
         menuItemSeparator = UIView(frame: CGRectMake(menuItemWidth - (separatorWidth / 2), floor(menuScrollViewHeight * ((1.0 - separatorPercentageHeight) / 2.0)), separatorWidth, floor(menuScrollViewHeight * separatorPercentageHeight)))
@@ -45,7 +47,19 @@ class MenuItemView: UIView {
         menuItemSeparator!.hidden = true
         self.addSubview(menuItemSeparator!)
         
-        self.addSubview(titleLabel!)
+        // PATCH: show image icon workaround by tejima
+        if let imgView = navItem.titleView as? UIImageView {
+            if let imgTitle = navItem.title {
+                self.imageTitle = imgTitle
+            }
+            print(self.imageTitle)
+            self.imageView = imgView
+            imgView.frame = CGRectMake(0.0, 0.0, menuItemWidth, menuScrollViewHeight - indicatorHeight)
+            imgView.contentMode = UIViewContentMode.Center
+            self.addSubview(imgView)
+        } else {
+            self.addSubview(titleLabel!)
+        }
     }
     
     func setTitleText(text: NSString) {
@@ -234,16 +248,16 @@ public class CAPSPageMenu: UIViewController, UIScrollViewDelegate, UIGestureReco
     required public init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
     }
-	
-	// MARK: - Container View Controller
-	public override func shouldAutomaticallyForwardAppearanceMethods() -> Bool {
-		return true
-	}
-	
-	public override func shouldAutomaticallyForwardRotationMethods() -> Bool {
-		return true
-	}
-	
+    
+    // MARK: - Container View Controller
+    public override func shouldAutomaticallyForwardAppearanceMethods() -> Bool {
+        return true
+    }
+    
+    public override func shouldAutomaticallyForwardRotationMethods() -> Bool {
+        return true
+    }
+    
     // MARK: - UI Setup
     
     func setUpUserInterface() {
@@ -354,7 +368,7 @@ public class CAPSPageMenu: UIViewController, UIScrollViewDelegate, UIGestureReco
                 
                 let titleText : String = controllerTitle != nil ? controllerTitle! : "Menu \(Int(index) + 1)"
                 
-                var itemWidthRect : CGRect = (titleText as NSString).boundingRectWithSize(CGSizeMake(1000, 1000), options: NSStringDrawingOptions.UsesLineFragmentOrigin, attributes: [NSFontAttributeName:menuItemFont], context: nil)
+                let itemWidthRect : CGRect = (titleText as NSString).boundingRectWithSize(CGSizeMake(1000, 1000), options: NSStringDrawingOptions.UsesLineFragmentOrigin, attributes: [NSFontAttributeName:menuItemFont], context: nil)
                 
                 menuItemWidth = itemWidthRect.width
                 
@@ -378,9 +392,9 @@ public class CAPSPageMenu: UIViewController, UIScrollViewDelegate, UIGestureReco
             
             let menuItemView : MenuItemView = MenuItemView(frame: menuItemFrame)
             if useMenuLikeSegmentedControl {
-                menuItemView.setUpMenuItemView(CGFloat(self.view.frame.width) / CGFloat(controllerArray.count), menuScrollViewHeight: menuHeight, indicatorHeight: selectionIndicatorHeight, separatorPercentageHeight: menuItemSeparatorPercentageHeight, separatorWidth: menuItemSeparatorWidth, separatorRoundEdges: menuItemSeparatorRoundEdges, menuItemSeparatorColor: menuItemSeparatorColor)
+                menuItemView.setUpMenuItemView(CGFloat(self.view.frame.width) / CGFloat(controllerArray.count), menuScrollViewHeight: menuHeight, indicatorHeight: selectionIndicatorHeight, separatorPercentageHeight: menuItemSeparatorPercentageHeight, separatorWidth: menuItemSeparatorWidth, separatorRoundEdges: menuItemSeparatorRoundEdges, menuItemSeparatorColor: menuItemSeparatorColor, navItem: controller.navigationItem)
             } else {
-                menuItemView.setUpMenuItemView(menuItemWidth, menuScrollViewHeight: menuHeight, indicatorHeight: selectionIndicatorHeight, separatorPercentageHeight: menuItemSeparatorPercentageHeight, separatorWidth: menuItemSeparatorWidth, separatorRoundEdges: menuItemSeparatorRoundEdges, menuItemSeparatorColor: menuItemSeparatorColor)
+                menuItemView.setUpMenuItemView(menuItemWidth, menuScrollViewHeight: menuHeight, indicatorHeight: selectionIndicatorHeight, separatorPercentageHeight: menuItemSeparatorPercentageHeight, separatorWidth: menuItemSeparatorWidth, separatorRoundEdges: menuItemSeparatorRoundEdges, menuItemSeparatorColor: menuItemSeparatorColor, navItem: controller.navigationItem)
             }
             
             // Configure menu item label font if font is set by user
@@ -417,8 +431,13 @@ public class CAPSPageMenu: UIViewController, UIScrollViewDelegate, UIGestureReco
         
         // Set selected color for title label of selected menu item
         if menuItems.count > 0 {
-            if menuItems[currentPageIndex].titleLabel != nil {
-                menuItems[currentPageIndex].titleLabel!.textColor = selectedMenuItemLabelColor
+            let currentItem = menuItems[currentPageIndex]
+            if currentItem.titleLabel != nil {
+                currentItem.titleLabel!.textColor = selectedMenuItemLabelColor
+            }
+            // selected image with _active suffix
+            if currentItem.imageTitle != "" {
+                currentItem.imageView?.image = UIImage(named: currentItem.imageTitle + "_active")
             }
         }
         
@@ -707,8 +726,18 @@ public class CAPSPageMenu: UIViewController, UIScrollViewDelegate, UIGestureReco
                 // Switch newly selected menu item title label to selected color and old one to unselected color
                 if self.menuItems.count > 0 {
                     if self.menuItems[self.lastPageIndex].titleLabel != nil && self.menuItems[self.currentPageIndex].titleLabel != nil {
-                        self.menuItems[self.lastPageIndex].titleLabel!.textColor = self.unselectedMenuItemLabelColor
-                        self.menuItems[self.currentPageIndex].titleLabel!.textColor = self.selectedMenuItemLabelColor
+                        let lastItem = self.menuItems[self.lastPageIndex]
+                        lastItem.titleLabel!.textColor = self.unselectedMenuItemLabelColor
+                        let currentItem = self.menuItems[self.currentPageIndex]
+                        currentItem.titleLabel!.textColor = self.selectedMenuItemLabelColor
+                        // selected image with _active suffix
+                        if lastItem.imageTitle != "" {
+                            lastItem.imageView?.image = UIImage(named: lastItem.imageTitle)
+                        }
+                        if currentItem.imageTitle != "" {
+                            currentItem.imageView?.image = UIImage(named: currentItem.imageTitle + "_active")
+                        }
+                        
                     }
                 }
             })
